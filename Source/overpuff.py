@@ -10,8 +10,10 @@ RED = (255,   0,   0)
 GREEN = (  0, 255,   0)
 BLUE = (  0,   0, 255)
 
+STEPSIZE = 5
+
 pygame.init()
-size = (700, 500)
+size = (926, 500)
 screen = pygame.display.set_mode(size)
 pygame.display.set_caption("OverPuffs")
 
@@ -63,7 +65,6 @@ class SteeringBehavior():
                 desired_velocity = (RandomTargetPoint - Vec2d(self.vehicle.rect.x, self.vehicle.rect.y)).normalized() * self.vehicle.max_speed
                 return self.vehicle.mass * (desired_velocity - self.vehicle.velocity)
 
-
 # SPRITE CLASS
 class MovingEntity(pygame.sprite.Sprite):
         def __init__(self, color, width, height):
@@ -109,45 +110,92 @@ class Doge(MovingEntity):
                 return velocity_trunc        
 
 class Player(pygame.sprite.Sprite):
-        def __init__(self, color, width, height):
+        def __init__(self, color, width, height, bg):
                 pygame.sprite.Sprite.__init__(self)
                 self.image = pygame.image.load("../Assets/Sprites/8-bit-ana.png")
                 self.rect = self.image.get_rect()
                 self.size = self.image.get_rect().size
+                self.image = pygame.transform.scale(self.image, (int(self.size[0]*0.3), int(self.size[1]*0.3)))
+                self.mask = pygame.mask.from_surface(self.image)
+                self.bg = bg
+
+        def Update(self, time_elapsed):
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_LEFT] and not self.CheckCollision(pygame.K_LEFT):
+                self.moveLeft(STEPSIZE)
+            if keys[pygame.K_RIGHT] and not self.CheckCollision(pygame.K_RIGHT):
+                self.moveRight(STEPSIZE)
+            if keys[pygame.K_UP] and not self.CheckCollision(pygame.K_UP):
+                self.moveUp(STEPSIZE)
+            if keys[pygame.K_DOWN] and not self.CheckCollision(pygame.K_DOWN):
+                self.moveDown(STEPSIZE)
+            
+            # collsion detection
+#            hit_list = pygame.sprite.Group()
+#            hit_list.add(self.bg)
+#            if pygame.sprite.spritecollide(self, hit_list, False, pygame.sprite.collide_mask):
+#                print("COLLISION! \n")
+#            else:
+#                print("OK \n")
+                
+        def CheckCollision(self, dir):
+            delta = (0, 0)
+            if dir is pygame.K_LEFT:
+                delta = (-STEPSIZE, 0)
+            elif dir is pygame.K_RIGHT:
+                delta = (STEPSIZE, 0)
+            elif dir is pygame.K_UP:
+                delta = (0, -STEPSIZE)
+            elif dir is pygame.K_DOWN:
+                delta = (0, STEPSIZE)
+
+            return self.mask.overlap(self.bg.mask, (self.bg.rect.left - (self.rect[0] + delta[0]) % size[0], self.bg.rect.top - (self.rect[1] + delta[1]) % size[1]))
 
         def GetPos(self):
                 return Vec2d(self.rect[0], self.rect[1])
 
         def moveRight(self, pixels):
-                self.rect = (self.rect[0] + pixels, self.rect[1])
+                self.rect = ((self.rect[0] + pixels) % size[0], self.rect[1])
  
         def moveLeft(self, pixels):
-                self.rect = (self.rect[0] - pixels, self.rect[1])
+                self.rect = ((self.rect[0] - pixels) % size[0], self.rect[1])
 
         def moveUp(self, pixels):
-                self.rect = (self.rect[0], self.rect[1] - pixels)
+                self.rect = (self.rect[0], (self.rect[1] - pixels) % size[1])
 
         def moveDown(self, pixels):
-                self.rect = (self.rect[0], self.rect[1] + pixels)
+                self.rect = (self.rect[0], (self.rect[1] + pixels) % size[1])
+                
+class Background(pygame.sprite.Sprite):
+    def __init__(self, img_file, mask_file, location):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.image.load(img_file)
+        self.maskimage = pygame.image.load(mask_file)
+        self.rect = self.image.get_rect()
+        self.rect.left, self.rect.top = location
+        # COLLISION MASK
+        self.mask = pygame.mask.from_surface(self.maskimage)
+
+background = Background("../Assets/Maps/Anubis-Map-1.png", "../Assets/Maps/Anubis-Map-1-Mask.png", [0,0])
                 
 all_sprites_list = pygame.sprite.Group()
 dogos = []
 num_doges = 10
-screen_center = (size[0]/2, size[1]/2)
+screen_center = (size[0]//2, size[1]//2)
 
-player = Player(WHITE, 10, 10)
-player.rect = (screen_center[0] - player.size[0]/2, screen_center[1] - player.size[1]/2) 
+player = Player(WHITE, 10, 10, background)
+player.rect = (screen_center[0] - player.size[0]//2, screen_center[1] - player.size[1]//2) 
 all_sprites_list.add(player)
 
 radius = 200.0
 radial_step = 2.0 * math.pi / num_doges
-for x in range(0, num_doges):
-        dogo = Doge(WHITE, 10, 10)
-        dogo.SetTarget(player)
-        dogo.rect.x = screen_center[0] + radius * math.sin(radial_step * x)
-        dogo.rect.y = screen_center[1] + radius * math.cos(radial_step * x)
-        all_sprites_list.add(dogo)
-        dogos.append(dogo)
+#for x in range(0, num_doges):
+#        dogo = Doge(WHITE, 10, 10)
+#        dogo.SetTarget(player)
+#        dogo.rect.x = screen_center[0] + radius * math.sin(radial_step * x)
+#        dogo.rect.y = screen_center[1] + radius * math.cos(radial_step * x)
+#        all_sprites_list.add(dogo)
+#        dogos.append(dogo)
 
 # MAIN GAME LOOP
 while not done:
@@ -159,21 +207,15 @@ while not done:
                         if event.key==pygame.K_ESCAPE: #Pressing the x Key will quit the game
                                 done = True
  
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT]:
-            player.moveLeft(5)
-        if keys[pygame.K_RIGHT]:
-            player.moveRight(5)
-        if keys[pygame.K_UP]:
-            player.moveUp(5)
-        if keys[pygame.K_DOWN]:
-            player.moveDown(5)
+
         
         # update tiles
         screen.fill(BLACK) #clear previous frame
+        screen.blit(background.image, background.rect)
         
         all_sprites_list.draw(screen)
 
+        player.Update(tick_interval)        
         for d in dogos:
                 d.Update(tick_interval)
 
